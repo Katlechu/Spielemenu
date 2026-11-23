@@ -29,6 +29,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 #invBtn{right:calc(env(safe-area-inset-right) + 62px)}
 #menuBtn{left:calc(env(safe-area-inset-left) + 12px)}
 .ov{z-index:100;position:fixed;inset:0;background:rgba(0,0,0,.9);color:#fff;display:none;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(env(safe-area-inset-top) + 14px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 14px) calc(env(safe-area-inset-left) + 14px)}
+.ov>*{flex-shrink:0}
 .scr{z-index:300;background:linear-gradient(160deg,#16222f,#1f3a52);text-align:center}
 .ov h1,.ov h2{margin:6px 0}
 .card{background:#333;border-radius:12px;padding:10px 12px;margin:5px;width:min(420px,92vw);display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -59,6 +60,10 @@ input{font-size:16px;padding:10px;border-radius:8px;border:0;width:46%;margin:4p
 #roomCode{font-size:44px;font-weight:900;letter-spacing:.2em;color:#ffd200}
 #joinCode{width:140px;text-align:center;text-transform:uppercase;font-size:22px;letter-spacing:.2em}
 #diag{width:min(440px,92vw);text-align:left;white-space:pre-wrap;font-size:13px;line-height:1.45;background:#0006;border-radius:10px;padding:8px 10px;margin:4px 0;font-family:ui-monospace,Menlo,monospace;-webkit-user-select:text;user-select:text;display:none}
+#rlPanel{display:none;width:min(440px,92vw);text-align:left;background:#0005;border:1px solid #4b7aa3;border-radius:12px;padding:10px 12px;margin:6px 0;font-size:14px;line-height:1.4}
+#rlPanel input{width:100%;margin:4px 0}
+#rlPanel h4{margin:8px 0 2px;font-size:15px}
+#rlPanel button{min-height:40px;font-size:15px;margin:4px 6px 4px 0}
 .logoPlate{flex:none;position:relative;overflow:hidden;background:linear-gradient(145deg,#ffffff 0%,#eef2f8 55%,#dfe6f0 100%);border-radius:18px;padding:14px 22px;margin:6px 0 14px;
  box-shadow:0 1px 0 #fff inset,0 -3px 10px rgba(0,0,0,.10) inset,0 16px 30px rgba(0,0,0,.55),0 5px 10px rgba(0,0,0,.4),0 0 0 2px rgba(255,210,0,.6),0 0 26px rgba(255,122,0,.35);
  transform:perspective(800px) rotateX(5deg);animation:float 5s ease-in-out infinite}
@@ -178,6 +183,19 @@ input{font-size:16px;padding:10px;border-radius:8px;border:0;width:46%;margin:4p
 <div style="margin:6px"><input id="joinCode" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" autocorrect="off"><button id="joinGo">Beitreten</button></div>
 <div id="roomCode"></div>
 <div id="chNetStat"></div>
+<button id="rlBtn" style="background:#2c4a66;color:#fff;border:2px solid #4b7aa3">🛰️ Relay einrichten (für Mobilfunk)</button>
+<div id="rlPanel">
+<div>Handys im Mobilfunk (LTE/5G) können sich oft nicht direkt verbinden. Ein <b>Relay (TURN)</b> leitet dann die Züge weiter. Trage die Zugangsdaten eines Anbieters ein – sie bleiben nur auf diesem Gerät. Am besten auf <b>beiden</b> Handys.</div>
+<h4>Variante A: Metered (kostenloses Konto)</h4>
+<input id="rlApp" placeholder="App-Name (z. B. meinspiel)" autocapitalize="none" autocorrect="off" autocomplete="off">
+<input id="rlKey" placeholder="API-Key" autocapitalize="none" autocorrect="off" autocomplete="off">
+<h4>Variante B: Eigener TURN-Server (z. B. ExpressTURN)</h4>
+<input id="rlUrl" placeholder="turn:server:3478  (mehrere mit Komma)" autocapitalize="none" autocorrect="off" autocomplete="off">
+<input id="rlUser" placeholder="Benutzername" autocapitalize="none" autocorrect="off" autocomplete="off">
+<input id="rlPass" placeholder="Passwort" autocapitalize="none" autocorrect="off" autocomplete="off">
+<button id="rlSave">Speichern</button><button id="rlClear" style="background:#555;color:#fff">Löschen</button>
+<div id="rlStat" style="margin-top:4px"></div>
+</div>
 <button id="diagBtn" style="background:#2c4a66;color:#fff;border:2px solid #4b7aa3">🔧 Verbindungstest</button>
 <div id="diag"></div>
 <button id="netBack" style="background:#555;color:#fff">Zurück</button></div>
@@ -881,21 +899,39 @@ const CS={level:'2',color:'w'};
 document.querySelectorAll('#chCpu .opts').forEach(g=>g.querySelectorAll('button').forEach(b=>tap(b,()=>{g.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');CS[g.dataset.g]=b.dataset.v})));
 tap($('cpuGo'),()=>{const me=CS.color==='r'?(Math.random()<.5?'w':'b'):CS.color;startGame('cpu',me,+CS.level)});
 
-const PFX='dsw-chess-v1-',LOBBY=PFX+'lobby';
-const NET={peer:null,conn:null,lobby:null,cancel:false};
+const PFX='dsw-chess-v1-',LOBBY=PFX+'lobby',RL_KEY='dsw-relay';
+const NET={peer:null,conn:null,lobby:null,cancel:false,opts:undefined,relayOn:false};
 const rnd=n=>Math.random().toString(36).slice(2,2+n);
-const HINT='\n\nTipp: unten „Verbindungstest“ starten. Außerdem WLAN ↔ Mobilfunk wechseln, VPN und iCloud-Privatrelay ausschalten, Seite neu laden.';
+const HINT='\n\nTipp: unten „Verbindungstest“ starten, WLAN ↔ Mobilfunk wechseln, VPN/iCloud-Privatrelay ausschalten – oder ein Relay einrichten.';
 function netStat(t){$('chNetStat').textContent=t}
+function errTxt(e,what){const t=(e&&e.type)||'Fehler';
+ if(t==='negotiation-failed'||t==='connection-failed')return '❌ Direkte Verbindung zwischen den beiden Handys nicht möglich ('+t+').\nTypisch bei Mobilfunk (LTE/5G): Das Netz erlaubt keinen direkten Weg.\n👉 Lösung: beide Handys ins selbe WLAN – oder unten ein Relay einrichten (auf beiden Handys).';
+ return '❌ '+what+' ('+t+').'+HINT}
+function rlGet(){try{return JSON.parse(localStorage.getItem(RL_KEY)||'null')||{}}catch(e){return{}}}
+async function buildIce(){const base=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}];
+ const c=rlGet();let relay=[];NET.relayErr='';
+ if(c.app&&c.key){try{const app=String(c.app).trim().replace(/^https?:\/\//,'').replace(/\.metered\.live.*$/,'');
+   const r=await jget(`https://${app}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(String(c.key).trim())}`,7000);
+   if(Array.isArray(r))relay=r.filter(x=>x&&x.urls);else NET.relayErr='Metered: unerwartete Antwort'}catch(e){NET.relayErr='Metered nicht erreichbar / Zugangsdaten falsch'}}
+ else if(c.url&&c.user){const u=String(c.url).split(/[\s,]+/).filter(Boolean).map(x=>/^(turns?|stuns?):/.test(x)?x:'turn:'+x);relay=[{urls:u,username:String(c.user).trim(),credential:String(c.pass||'').trim()}]}
+ NET.relayOn=relay.length>0;return base.concat(relay)}
+async function prepNet(){const ice=await buildIce();NET.opts={config:{iceServers:ice}};return ice}
+function rlShow(){const c=rlGet();$('rlApp').value=c.app||'';$('rlKey').value=c.key||'';$('rlUrl').value=c.url||'';$('rlUser').value=c.user||'';$('rlPass').value=c.pass||'';
+ $('rlStat').textContent=(c.app&&c.key)?'✅ Metered gespeichert':(c.url&&c.user)?'✅ Eigener TURN gespeichert':'Noch kein Relay eingerichtet.'}
+tap($('rlBtn'),()=>{const p=$('rlPanel');const o=p.style.display==='block';p.style.display=o?'none':'block';if(!o)rlShow()});
+tap($('rlSave'),()=>{const c={app:$('rlApp').value.trim(),key:$('rlKey').value.trim(),url:$('rlUrl').value.trim(),user:$('rlUser').value.trim(),pass:$('rlPass').value.trim()};
+ try{localStorage.setItem(RL_KEY,JSON.stringify(c))}catch(e){}rlShow();$('rlStat').textContent+=' – bitte „🔧 Verbindungstest“ ausführen.'});
+tap($('rlClear'),()=>{try{localStorage.removeItem(RL_KEY)}catch(e){}rlShow()});
 function netReset(){NET.cancel=true;try{NET.conn&&NET.conn.close()}catch(e){}try{NET.peer&&NET.peer.destroy()}catch(e){}try{NET.lobby&&NET.lobby.destroy()}catch(e){}NET.peer=NET.conn=NET.lobby=null}
 function send(o){try{if(NET.conn&&NET.conn.open)NET.conn.send(o)}catch(e){}}
 function loadPeerLib(){if(window.Peer)return Promise.resolve();
  const urls=['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js','https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
  return urls.reduce((p,u)=>p.catch(()=>new Promise((res,rej)=>{if(window.Peer)return res();const s=document.createElement('script');s.src=u;s.onload=res;s.onerror=()=>rej(new Error('load'));document.head.appendChild(s)})),Promise.reject()).then(()=>{if(!window.Peer)throw new Error('nopeer')})}
-function claim(id,ms=20000){return new Promise((res,rej)=>{let done=false;let p;try{p=new Peer(id)}catch(e){return rej({type:'init'})}
+function claim(id,ms=20000){return new Promise((res,rej)=>{let done=false;let p;try{p=new Peer(id,NET.opts)}catch(e){return rej({type:'init'})}
  const to=setTimeout(()=>{if(!done){done=true;try{p.destroy()}catch(_){}rej({type:'timeout'})}},ms);
  p.on('open',()=>{if(done)return;done=true;clearTimeout(to);res(p)});
  p.on('error',e=>{if(!done){done=true;clearTimeout(to);try{p.destroy()}catch(_){}rej(e)}})})}
-function guestConnect(pid,ms){return new Promise((res,rej)=>{let p;try{p=new Peer()}catch(e){return rej({type:'init'})}let done=false;
+function guestConnect(pid,ms){return new Promise((res,rej)=>{let p;try{p=new Peer(undefined,NET.opts)}catch(e){return rej({type:'init'})}let done=false;
  const fail=e=>{if(done)return;done=true;clearTimeout(to);try{p.destroy()}catch(_){}rej(e||{type:'fail'})};
  const to=setTimeout(()=>fail({type:'timeout'}),ms);
  p.on('error',fail);
@@ -924,41 +960,44 @@ function lobbyHost(p){NET.lobby=p;netStat('🔎 Suche Gegner … Der zweite Spie
  p.on('connection',c=>{if(taken){c.on('open',()=>{c.send({k:'busy'});setTimeout(()=>c.close(),300)});return}
   taken=true;
   c.on('open',async()=>{const id=PFX+'m'+rnd(8);c.send({k:'room',id});await sleep(350);try{p.destroy()}catch(_){}NET.lobby=null;
-   try{const rp=await retry(()=>claim(id),3,(i,n)=>`Raum wird erstellt … Versuch ${i}/${n}`);if(NET.cancel){rp.destroy();return}hostRoom(rp,'Gegner gefunden – verbinde …')}catch(e){netStat('❌ Raum konnte nicht erstellt werden ('+((e&&e.type)||'Fehler')+').'+HINT)}})});
+   try{const rp=await retry(()=>claim(id),3,(i,n)=>`Raum wird erstellt … Versuch ${i}/${n}`);if(NET.cancel){rp.destroy();return}hostRoom(rp,'Gegner gefunden – verbinde …')}catch(e){netStat(errTxt(e,'Raum konnte nicht erstellt werden'))}})});
  p.on('error',()=>{if(!NET.cancel&&!NET.conn&&!taken)netStat('❌ Verbindung zum Server verloren. Bitte erneut versuchen.')})}
 function lobbyGuest(g){return new Promise(res=>{let done=false;
  const to=setTimeout(()=>{if(!done){done=true;try{g.peer.destroy()}catch(_){}res(false)}},12000);
  g.conn.on('data',async d=>{if(done||!d)return;done=true;clearTimeout(to);
   if(d.k==='room'){netStat('Gegner gefunden – verbinde …');try{g.conn.close()}catch(_){}try{g.peer.destroy()}catch(_){}
-   let ok=null,last=null;for(let t=0;t<6&&!NET.cancel&&!ok;t++){try{ok=await guestConnect(d.id,15000)}catch(e){last=e;netStat(`Gegner gefunden – verbinde … Versuch ${t+2}/6`);await sleep(1000)}}
-   if(ok&&!NET.cancel)joinAsGuest(ok);else if(!NET.cancel)netStat('❌ Verbindung zum Gegner fehlgeschlagen ('+((last&&last.type)||'Zeitüberschreitung')+'). Vermutlich blockiert dein oder sein Netz die direkte Verbindung.'+HINT);
+   let ok=null,last=null;for(let t=0;t<4&&!NET.cancel&&!ok;t++){try{ok=await guestConnect(d.id,15000)}catch(e){last=e;netStat(`Gegner gefunden – verbinde … Versuch ${t+2}/4`);await sleep(1000)}}
+   if(ok&&!NET.cancel)joinAsGuest(ok);else if(!NET.cancel)netStat(errTxt(last,'Verbindung zum Gegner fehlgeschlagen'));
    res(true)}
   else{try{g.peer.destroy()}catch(_){}res(false)}})})}
 async function quickMatch(){netReset();NET.cancel=false;$('roomCode').textContent='';netStat('Verbinde mit Server … (kann bis 20 s dauern)');
  try{await loadPeerLib()}catch(e){netStat('❌ Online-Modul konnte nicht geladen werden. Internetverbindung prüfen.'+HINT);return}
+ await prepNet();
  for(let a=0;a<40&&!NET.cancel;a++){
   try{const p=await retry(()=>claim(LOBBY),3,(i,n)=>`Server antwortet langsam – Versuch ${i}/${n} …`);if(NET.cancel){try{p.destroy()}catch(_){}return}lobbyHost(p);return}
   catch(e){if(NET.cancel)return;
    if(e&&e.type==='unavailable-id'){try{netStat('Suche Gegner …');const g=await guestConnect(LOBBY,12000);if(NET.cancel){try{g.peer.destroy()}catch(_){}return}const r=await lobbyGuest(g);if(r)return}catch(e2){}await sleep(1200)}
-   else{netStat('❌ Server nicht erreichbar ('+((e&&e.type)||'Fehler')+').'+HINT);return}}}
+   else{netStat(errTxt(e,'Server nicht erreichbar'));return}}}
  if(!NET.cancel)netStat('Kein Gegner gefunden. Versuche es später erneut oder nutze einen privaten Raum.')}
 async function createRoom(){netReset();NET.cancel=false;netStat('Verbinde mit Server … (kann bis 20 s dauern)');
  try{await loadPeerLib()}catch(e){netStat('❌ Online-Modul konnte nicht geladen werden. Internetverbindung prüfen.'+HINT);return}
+ await prepNet();
  const AL='ABCDEFGHJKMNPQRSTUVWXYZ';
  for(let t=0;t<8&&!NET.cancel;t++){let code='';for(let i=0;i<4;i++)code+=AL[Math.floor(Math.random()*AL.length)];
   try{const rp=await retry(()=>claim(PFX+'r'+code),3,(i,n)=>`Server antwortet langsam – Versuch ${i}/${n} …`);if(NET.cancel){try{rp.destroy()}catch(_){}return}
    $('roomCode').textContent=code;hostRoom(rp,'Gib diesen Code deinem Gegner. Warte auf Beitritt …');return}
-  catch(e){if(NET.cancel)return;if(!(e&&e.type==='unavailable-id')){netStat('❌ Server nicht erreichbar ('+((e&&e.type)||'Fehler')+').'+HINT);return}}}}
+  catch(e){if(NET.cancel)return;if(!(e&&e.type==='unavailable-id')){netStat(errTxt(e,'Server nicht erreichbar'));return}}}}
 async function joinRoom(){const code=$('joinCode').value.trim().toUpperCase();if(code.length!==4){netStat('Bitte den 4-stelligen Code eingeben.');return}
  netReset();NET.cancel=false;$('roomCode').textContent='';netStat('Verbinde … (kann bis 20 s dauern)');
  try{await loadPeerLib()}catch(e){netStat('❌ Online-Modul konnte nicht geladen werden. Internetverbindung prüfen.'+HINT);return}
+ await prepNet();
  try{const g=await retry(()=>guestConnect(PFX+'r'+code,20000),2,(i,n)=>`Verbinde … Versuch ${i}/${n}`);if(NET.cancel){try{g.peer.destroy()}catch(_){}return}joinAsGuest(g)}
- catch(e){if(!NET.cancel)netStat(e&&e.type==='peer-unavailable'?'❌ Raum nicht gefunden. Code prüfen – der Ersteller muss die Seite offen lassen.':'❌ Verbindung fehlgeschlagen ('+((e&&e.type)||'Fehler')+').'+HINT)}}
+ catch(e){if(!NET.cancel)netStat(e&&e.type==='peer-unavailable'?'❌ Raum nicht gefunden. Code prüfen – der Ersteller muss die Seite offen lassen.':errTxt(e,'Verbindung fehlgeschlagen'))}}
 
-function iceTest(){return new Promise(res=>{const t=new Set();let pc,to;
+function iceTest(ice){return new Promise(res=>{const t=new Set();let pc,to;
  const fin=()=>{clearTimeout(to);try{pc&&pc.close()}catch(_){}res(t)};
- try{pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'turn:eu-0.turn.peerjs.com:3478',username:'peerjs',credential:'peerjsp'}]})}catch(e){return res(null)}
- to=setTimeout(fin,8000);
+ try{pc=new RTCPeerConnection({iceServers:ice})}catch(e){return res(null)}
+ to=setTimeout(fin,9000);
  pc.createDataChannel('x');
  pc.onicecandidate=e=>{if(!e.candidate){fin();return}const m=/ typ (\w+)/.exec(e.candidate.candidate);if(m){t.add(m[1]);if(m[1]==='relay')setTimeout(fin,300)}};
  pc.createOffer().then(o=>pc.setLocalDescription(o)).catch(fin)})}
@@ -976,15 +1015,19 @@ async function runDiag(){const out=$('diag');out.style.display='block';out.textC
   to=setTimeout(()=>{bad++;hint=hint||'WebSocket wird blockiert (Firewall, VPN, Inhaltsblocker oder Mobilfunk-Filter).';fin('❌ 3. WebSocket Zeitüberschreitung (>10 s)')},10000);
   ws.onopen=()=>fin('✅ 3. WebSocket offen ('+ms(t0)+')');
   ws.onerror=()=>{bad++;hint=hint||'WebSocket wird blockiert (Firewall, VPN, Inhaltsblocker oder Mobilfunk-Filter).';fin('❌ 3. WebSocket-Fehler (blockiert?)')}});
+ const ice=await buildIce();NET.opts={config:{iceServers:ice}};
  t0=performance.now();
  try{const p=await claim('dsw-diag-'+rnd(10),15000);L('✅ 4. Anmeldung beim Server ok ('+ms(t0)+')');try{p.destroy()}catch(_){}}
  catch(e){bad++;L('❌ 4. Anmeldung fehlgeschlagen ('+((e&&e.type)||'Fehler')+', '+ms(t0)+')')}
- const ice=await iceTest();
- if(!ice)L('❌ 5. WebRTC wird von diesem Browser nicht unterstützt');
- else{const a=[...ice];L((ice.has('relay')?'✅':ice.has('srflx')?'⚠️':'❌')+' 5. Verbindungswege: '+(a.join(', ')||'keine')+(ice.has('relay')?' (Relay verfügbar)':ice.has('srflx')?' (direkt möglich, kein Relay erreichbar)':' (Netz lässt keine Kandidaten zu)'));if(!ice.has('relay')&&!ice.has('srflx'))bad++}
- L('');L(bad===0?'Ergebnis: Alles erreichbar. Falls es trotzdem hakt, haben Gegner oder Server kurz gestockt – bitte erneut versuchen. Beide Spieler müssen dieselbe Seite offen haben.':'Ergebnis: Problem erkannt. '+(hint||'Bitte Screenshot dieses Tests schicken.')+' Hilft oft: WLAN ↔ Mobilfunk wechseln, VPN/iCloud-Privatrelay aus, Inhaltsblocker für diese Seite aus.')}
+ const ti=await iceTest(ice);
+ if(!ti)L('❌ 5. WebRTC wird von diesem Browser nicht unterstützt');
+ else{const a=[...ti].join(', ')||'keine';
+  if(ti.has('relay'))L('✅ 5. Relay funktioniert (Wege: '+a+')');
+  else if(NET.relayOn){bad++;hint=hint||'Relay eingetragen, aber nicht erreichbar – Zugangsdaten prüfen.';L('❌ 5. Relay eingetragen, aber nicht erreichbar (Wege: '+a+')'+(NET.relayErr?' – '+NET.relayErr:''))}
+  else{L('⚠️ 5. Kein Relay eingerichtet (Wege: '+a+'). Direktverbindung klappt nur in manchen Netzen.');if(NET.relayErr)L('   '+NET.relayErr);hint=hint||'Für Mobilfunk-Verbindungen ein Relay einrichten.'}}
+ L('');L(bad===0&&NET.relayOn?'Ergebnis: Alles bereit – auch Mobilfunk sollte funktionieren.':bad===0?'Ergebnis: Server erreichbar. Zwischen zwei Handys im Mobilfunk gelingt die Verbindung ohne Relay oft NICHT („negotiation-failed“). Lösung: beide im selben WLAN oder ein Relay einrichten.':'Ergebnis: Problem erkannt. '+(hint||'Bitte Screenshot schicken.'))}
 tap($('diagBtn'),runDiag);
-tap($('tChNet'),()=>{$('roomCode').textContent='';netStat('');$('diag').style.display='none';show('chNet')});
+tap($('tChNet'),()=>{$('roomCode').textContent='';netStat('');$('diag').style.display='none';$('rlPanel').style.display='none';show('chNet')});
 tap($('tQuick'),quickMatch);tap($('tRoom'),createRoom);tap($('joinGo'),joinRoom);
 tap($('netBack'),()=>{netReset();show('chMenu')});
 sizeBoard();
