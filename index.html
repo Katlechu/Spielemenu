@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Spielewelt">
+<meta name="format-detection" content="telephone=no">
+<title>Spielewelt</title>
+<style>
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;box-sizing:border-box}
+input{-webkit-user-select:text;user-select:text}
+html,body{margin:0;width:100%;height:100%;background:#4a8c3a;overflow:hidden;position:fixed;overscroll-behavior:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;z-index:1}
+#hud{z-index:5;position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 12px) 6px calc(env(safe-area-inset-left) + 12px);background:rgba(0,0,0,.55);color:#fff;font-weight:700;font-size:15px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+#warn{z-index:5;position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 46px);background:#c0392b;color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;display:none;pointer-events:none}
+#msg{z-index:6;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 130px);background:rgba(0,0,0,.7);color:#fff;padding:8px 14px;border-radius:10px;font-size:14px;display:none;text-align:center;max-width:80vw;pointer-events:none}
+.pedal{z-index:5;position:fixed;width:84px;height:84px;border-radius:50%;color:#fff;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;text-align:center;border:3px solid rgba(255,255,255,.7);background:rgba(0,0,0,.35);touch-action:none}
+.pedal.on{background:rgba(255,255,255,.5);color:#000}
+#gas{right:calc(env(safe-area-inset-right) + 18px);bottom:calc(env(safe-area-inset-bottom) + 24px);width:100px;height:100px;background:rgba(46,204,113,.45)}
+#gas.lock{background:#2ecc71;color:#000;border-color:#fff;box-shadow:0 0 14px #2ecc71}
+#brake{right:calc(env(safe-area-inset-right) + 130px);bottom:calc(env(safe-area-inset-bottom) + 24px);background:rgba(231,76,60,.45)}
+#hint{z-index:5;position:fixed;left:calc(env(safe-area-inset-left) + 20px);bottom:calc(env(safe-area-inset-bottom) + 50px);color:rgba(255,255,255,.85);font-size:14px;pointer-events:none;text-shadow:0 1px 3px #000}
+.mini{z-index:5;position:fixed;top:calc(env(safe-area-inset-top) + 46px);width:42px;height:42px;border-radius:50%;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.4);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;opacity:.65;touch-action:manipulation}
+.mini.on{background:rgba(46,204,113,.7);opacity:1}
+#tiltBtn{right:calc(env(safe-area-inset-right) + 12px)}
+#invBtn{right:calc(env(safe-area-inset-right) + 62px);display:none}
+#menuBtn{left:calc(env(safe-area-inset-left) + 12px)}
+.ov{z-index:100;position:fixed;inset:0;background:rgba(0,0,0,.9);color:#fff;display:none;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(env(safe-area-inset-top) + 14px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 14px) calc(env(safe-area-inset-left) + 14px)}
+.scr{z-index:300;background:linear-gradient(160deg,#16222f,#1f3a52);text-align:center}
+.ov h1,.ov h2{margin:6px 0}
+.card{background:#333;border-radius:12px;padding:10px 12px;margin:5px;width:min(420px,92vw);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tile{background:#2c4a66;border:2px solid #4b7aa3;border-radius:16px;padding:14px;margin:6px;width:min(440px,92vw);text-align:left;touch-action:manipulation}
+.tile b{font-size:19px}.tile small{display:block;margin-top:4px;opacity:.8;line-height:1.35}
+.tile.off{opacity:.45}
+.tile:active{background:#3b6285}
+button{cursor:pointer;font-size:18px;min-height:48px;min-width:96px;padding:10px 16px;margin:6px;border:0;border-radius:10px;background:#f5a623;color:#000;font-weight:700;touch-action:manipulation}
+button:disabled{background:#666;color:#999}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:min(640px,94vw)}
+.ans{background:#2c4a66;color:#fff;border:2px solid #4b7aa3;font-size:16px;min-height:56px;margin:0;text-align:left}
+.ans.ok{background:#1e8e4e;border-color:#6dffa8}.ans.bad{background:#a93226;border-color:#ff8a80}
+.pl{flex:1;background:#243b52;border:2px solid transparent;border-radius:12px;padding:8px 10px;text-align:left}
+.pl.act{border-color:#f5a623;background:#2f4d6b}
+.bar{height:8px;background:#0006;border-radius:4px;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:#f5a623;transition:width .3s}
+input{font-size:16px;padding:10px;border-radius:8px;border:0;width:46%;margin:4px}
+#qText{font-size:20px;font-weight:700;margin:12px 0;max-width:min(640px,94vw);line-height:1.3}
+.badge{display:inline-block;background:#f5a62333;border:1px solid #f5a623;border-radius:20px;padding:3px 10px;font-size:13px;margin:2px}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><span id="hMoney"></span><span id="hEn"></span><span id="hDay"></span><span id="hCar"></span></div>
+<div id="warn">Erschöpft! Im Hotel übernachten.</div>
+<div id="msg"></div>
+<div class="mini" id="menuBtn">☰</div>
+<div class="mini" id="invBtn">⇄</div>
+<div class="mini" id="tiltBtn">📱</div>
+<div id="hint">◀ ▶ Links wischen = Lenken</div>
+<div class="pedal" id="brake">BREMSE</div>
+<div class="pedal" id="gas">GAS</div>
+
+<div class="ov scr" id="mainMenu" style="display:flex"><h1>🎮 Spielewelt</h1><p style="opacity:.8;margin:0 0 8px">Wähle ein Spiel</p>
+<div class="tile" id="tCar"><b>🚗 Road Tycoon</b><small>Fahre durch die Welt, verdiene Geld, kaufe Autos im Autohaus und übernachte im Hotel. Touch- oder Neigungssteuerung. Gas doppelt antippen = 100 % halten.</small></div>
+<div class="tile" id="tQuiz"><b>🧠 Quiz für 2 Spieler</b><small>Abwechselnd Fragen beantworten. Wer zuerst 20 Punkte hat, gewinnt. Bereiche: Autos, Formel 1, MotoGP.</small></div>
+<div class="tile off"><b>➕ Weitere Spiele</b><small>Folgen später.</small></div></div>
+
+<div class="ov scr" id="catMenu"><h2>🧠 Quiz – Bereich wählen</h2>
+<div><input id="n1" maxlength="12" placeholder="Name Spieler 1"><input id="n2" maxlength="12" placeholder="Name Spieler 2"></div>
+<div class="tile" data-c="auto"><b>🚗 Autos</b><small>Marken, Technik, Geschichte</small></div>
+<div class="tile" data-c="f1"><b>🏁 Formel 1</b><small>Fahrer, Teams, Strecken, Regeln</small></div>
+<div class="tile" data-c="motogp"><b>🏍️ MotoGP</b><small>Fahrer, Hersteller, Strecken</small></div>
+<div class="tile" data-c="mix"><b>🎲 Alles gemischt</b><small>Fragen aus allen Bereichen</small></div>
+<button id="catBack">Zurück</button></div>
+
+<div class="ov scr" id="quiz"><div style="display:flex;gap:8px;width:min(640px,94vw)"><div class="pl" id="p0"></div><div class="pl" id="p1"></div></div>
+<div id="qInfo" style="margin-top:8px"></div><div id="qText"></div><div class="grid" id="qAns"></div>
+<div id="qFb" style="margin-top:8px;min-height:24px;font-weight:700"></div>
+<div><button id="qNext" style="display:none">Weiter</button><button id="qExit" style="background:#555;color:#fff;min-width:60px">☰ Beenden</button></div></div>
+
+<div class="ov scr" id="win"><h1 id="wTitle"></h1><p id="wTxt" style="font-size:18px"></p>
+<button id="wAgain">Revanche</button><button id="wCat">Bereich wechseln</button><button id="wMenu">Hauptmenü</button></div>
+
+<div class="ov" id="shop"><h2>🚗 Autohaus</h2><div id="shopList"></div><button id="shopClose">Schließen</button></div>
+<div class="ov" id="hotel"><h2>🏨 Hotel</h2><p id="hotelTxt"></p><button id="sleepBtn">Übernachten (80 €)</button><button id="hotelClose">Schließen</button></div>
+<script>
+
+const QDATA={
+auto:[
+["Welches Unternehmen baute den legendären Käfer?","Volkswagen","Opel","Ford","Fiat",1],
+["Wofür steht die Abkürzung PS?","Pferdestärke","Pro Sekunde","Power Speed","Pedalstärke",1],
+["Welche Marke hat vier ineinander verschlungene Ringe als Logo?","Audi","BMW","Opel","Seat",1],
+["In welcher Stadt hat Porsche seinen Hauptsitz?","Stuttgart","München","Ingolstadt","Wolfsburg",1],
+["Welcher Hersteller baut das Model S?","Tesla","Rivian","Polestar","Lucid",1],
+["Welcher japanische Hersteller baut den Roadster MX-5?","Mazda","Subaru","Suzuki","Honda",2],
+["Welche Marke baut den Supersportwagen Huracán?","Lamborghini","Ferrari","Maserati","Pagani",1],
+["Welche italienische Marke hat ein springendes Pferd auf gelbem Schild als Logo?","Ferrari","Fiat","Alfa Romeo","Lancia",1],
+["Wie viele Zylinder hat der klassische Porsche 911 Carrera?","6","4","8","12",2],
+["Wofür steht ABS im Auto?","Antiblockiersystem","Allradbremssystem","Automatisches Bremssignal","Antriebsbegrenzungssystem",1],
+["Welches Modell machte Ford ab 1908 zum Massenauto?","Model T","Mustang","Fiesta","Thunderbird",2],
+["Wer gilt als Erfinder des Automobils mit Benzinmotor von 1886?","Carl Benz","Henry Ford","Rudolf Diesel","Ferdinand Porsche",2],
+["In welchem Land hat Skoda seinen Ursprung?","Tschechien","Polen","Ungarn","Slowakei",1],
+["Welche Marke gehört NICHT zum Volkswagen-Konzern?","Toyota","Skoda","Seat","Bentley",2],
+["Was misst ein Drehzahlmesser?","Motorumdrehungen pro Minute","Die Fahrgeschwindigkeit","Den Reifendruck","Die Öltemperatur",1],
+["Wofür steht die Abkürzung SUV?","Sport Utility Vehicle","Super Urban Vehicle","Safe Utility Van","Sport Universal Vehicle",1],
+["Was macht ein Turbolader?","Er verdichtet die Ansaugluft mit Hilfe der Abgase","Er kühlt das Motoröl","Er speichert Bremsenergie","Er schaltet den Gang",2],
+["Nach wem ist der Dieselmotor benannt?","Rudolf Diesel","Nikolaus Otto","Felix Wankel","Karl Maybach",2],
+["Welchen Motortyp mit Kreiskolben setzte Mazda im RX-7 ein?","Wankelmotor","Boxermotor","V-Motor","Reihenmotor",3],
+["Aus welchem Land stammt der Mini ursprünglich?","Großbritannien","Italien","Frankreich","Deutschland",1],
+["Wie heißt der Sportwagen von Chevrolet mit Kunststoffkarosserie seit 1953?","Corvette","Camaro","Impala","Bel Air",2],
+["Wofür steht das Kürzel BMW?","Bayerische Motoren Werke","Berliner Motoren Werke","Baden-Motor-Werke","Bayerische Maschinenwerke",1],
+["Wie viele Zylinder hat der Motor des Bugatti Veyron?","16","8","12","10",3],
+["In welchem Land sitzt Hyundai?","Südkorea","Japan","China","Taiwan",1],
+["Was bedeutet TÜV?","Technischer Überwachungsverein","Technisches Überprüfungsverfahren","Transport-Überwachungs-Verband","Technische Übergabeverordnung",1],
+["Wozu dient das Differenzial im Antrieb?","Es gleicht die Raddrehzahlen in Kurven aus","Es kühlt die Bremsen","Es regelt die Einspritzmenge","Es dämpft die Federung",2],
+["Welcher Hersteller baut den Geländewagen Defender?","Land Rover","Jeep","Toyota","Mercedes-Benz",2],
+["Welche Marke baut den Panamera?","Porsche","Audi","Maserati","Bentley",1],
+["Was kombiniert ein Hybridantrieb?","Verbrennungsmotor und Elektromotor","Diesel und Benzin im selben Tank","Zwei Elektromotoren ohne Batterie","Wasserstoff und Erdgas",1],
+["Welche allgemeine Höchstgeschwindigkeit gilt auf Autobahnen in Österreich?","130 km/h","100 km/h","120 km/h","unbegrenzt",1],
+["Wer gründete die Marke Ferrari?","Enzo Ferrari","Ferruccio Lamborghini","Ettore Bugatti","Battista Pininfarina",2],
+["Mit welchem Fahrzeugtyp wird der Ford Mustang meist bezeichnet?","Pony Car","Kombi","Kleinwagen","Van",3]
+],
+f1:[
+["Wie viele WM-Titel gewann Michael Schumacher?","7","5","6","8",1],
+["Auf welcher Strecke wird der Große Preis von Italien traditionell gefahren?","Monza","Imola","Mugello","Misano",1],
+["Welches Team fährt traditionell in Rot und ist das älteste der Formel 1?","Ferrari","McLaren","Williams","Alfa Romeo",1],
+["Welche Flagge zeigt das Rennende an?","Schwarz-weiß karierte Flagge","Grüne Flagge","Blaue Flagge","Weiße Flagge",1],
+["Was bedeutet die rote Flagge?","Das Rennen wird unterbrochen","Gefahr, nicht überholen","Boxenstopp ist Pflicht","Letzte Runde",2],
+["Wer wurde 1950 erster Formel-1-Weltmeister?","Giuseppe Farina","Juan Manuel Fangio","Alberto Ascari","Stirling Moss",3],
+["Aus welchem Land stammte Ayrton Senna?","Brasilien","Argentinien","Portugal","Spanien",1],
+["Auf welcher berühmten Strecke in Belgien liegt die Kurve Eau Rouge?","Spa-Francorchamps","Zolder","Zandvoort","Nivelles",3],
+["Wie viele Punkte erhält der Sieger eines Grand Prix heute?","25","20","15","10",2],
+["Wofür stand die Abkürzung DRS in der Formel 1?","Drag Reduction System","Dynamic Racing Speed","Driver Radio System","Direct Rear Steering",2],
+["In welchem österreichischen Bundesland liegt der Red Bull Ring?","Steiermark","Tirol","Salzburg","Kärnten",2],
+["Wie viele WM-Titel gewann Niki Lauda?","3","2","4","5",2],
+["Wie viele Titel in Folge gewann Sebastian Vettel von 2010 bis 2013?","4","3","5","2",2],
+["Welcher Reifenhersteller ist seit 2011 Einheitsausrüster der Formel 1?","Pirelli","Michelin","Bridgestone","Goodyear",2],
+["Wie nennt man die Boxengasse auf Englisch?","Pit Lane","Garage Way","Service Road","Box Street",1],
+["Welcher Fahrer hält den Rekord für die meisten Grand-Prix-Siege?","Lewis Hamilton","Michael Schumacher","Ayrton Senna","Sebastian Vettel",2],
+["Welches Team gewann 2014 bis 2021 achtmal in Folge die Konstrukteurswertung?","Mercedes","Red Bull","Ferrari","McLaren",2],
+["Welcher Grand Prix war 2008 das erste Nachtrennen der Formel 1?","Singapur","Bahrain","Abu Dhabi","Japan",3],
+["Wie viele Fahrer stellt ein Team pro Rennen?","2","3","4","1",1],
+["Wozu dient das Safety Car?","Es führt das Feld bei Gefahr langsam an","Es misst die Rundenzeiten","Es holt defekte Autos ab","Es startet das Rennen",1],
+["Wer wurde 1996 Weltmeister?","Damon Hill","Jacques Villeneuve","Nigel Mansell","David Coulthard",3],
+["Mit welchem Team wurde Kimi Räikkönen 2007 Weltmeister?","Ferrari","McLaren","Renault","Williams",2],
+["Welches Rennen gehört neben dem Monaco-GP und dem Indy 500 zur Triple Crown des Motorsports?","24 Stunden von Le Mans","Daytona 500","Dakar-Rallye","Nürburgring 24h",3],
+["Welcher Österreicher wurde 1970 posthum Weltmeister?","Jochen Rindt","Niki Lauda","Gerhard Berger","Helmut Marko",3],
+["Was bedeutet Pole Position?","Der beste Startplatz an der Spitze","Der letzte Startplatz","Die schnellste Runde","Der erste Boxenstopp",1],
+["Was bedeutet die gelbe Flagge?","Gefahr, Überholverbot","Rennende","Rennabbruch","Wetterwechsel",1],
+["Welches Team hat seinen Sitz in Woking?","McLaren","Williams","Haas","Alpine",2],
+["Welche Nationalität hat Mika Häkkinen?","Finnisch","Schwedisch","Norwegisch","Estnisch",2],
+["Wie lange darf die reine Rennzeit eines Grand Prix höchstens betragen?","2 Stunden","90 Minuten","3 Stunden","1 Stunde",3]
+],
+motogp:[
+["Welche Startnummer fuhr Valentino Rossi?","46","93","99","26",1],
+["Welchen Hubraum haben MotoGP-Maschinen seit 2012?","1000 ccm","800 ccm","600 ccm","1300 ccm",2],
+["Aus welchem Land stammt Ducati?","Italien","Spanien","Japan","Österreich",1],
+["Aus welchem Land stammt Yamaha?","Japan","Italien","China","Südkorea",1],
+["In welchem Land liegt die Rennstrecke Mugello?","Italien","Spanien","Frankreich","Portugal",2],
+["Wie hieß die Königsklasse vor 2002?","500er-Klasse","Superbike","Moto1","Formel M",3],
+["Aus welchem Land stammt Marc Márquez?","Spanien","Italien","Frankreich","Portugal",1],
+["In welchem Land liegt die Strecke Phillip Island?","Australien","Neuseeland","Malaysia","Südafrika",2],
+["Welcher österreichische Hersteller hat seit 2017 ein eigenes Werksteam in der MotoGP?","KTM","Husqvarna","Rotax","Puch",1],
+["Auf welcher Strecke wird der Große Preis von Österreich gefahren?","Red Bull Ring in Spielberg","Salzburgring","Hockenheimring","Nürburgring",1],
+["Wie nennt man das Schleifen des Knies in Schräglage?","Knieschleifen","Kniebeuge","Kurvenkratzen","Bodenkontakt",1],
+["Was ist der Sprint im MotoGP-Wochenende seit 2023?","Ein kurzes Rennen am Samstag mit halber Distanz","Ein Qualifying über eine Runde","Ein Trainings-Lauf am Freitag","Ein Rennen nur für Nachwuchsfahrer",2],
+["Aus welchem Land stammt Casey Stoner?","Australien","Neuseeland","Südafrika","USA",2],
+["Mit welcher Marke wurde Casey Stoner 2007 Weltmeister?","Ducati","Honda","Yamaha","Suzuki",3],
+["Aus welchem Land stammt Kevin Schwantz?","USA","Kanada","Australien","Großbritannien",3],
+["Wer wurde 2022 MotoGP-Weltmeister?","Francesco Bagnaia","Fabio Quartararo","Marc Márquez","Joan Mir",2],
+["Wer wurde 2024 MotoGP-Weltmeister?","Jorge Martín","Francesco Bagnaia","Enea Bastianini","Maverick Viñales",3],
+["Welcher Reifenhersteller ist seit 2016 Einheitslieferant der MotoGP?","Michelin","Pirelli","Bridgestone","Dunlop",2],
+["Seit welchem Jahr heißt die Königsklasse MotoGP?","2002","1990","1998","2010",3],
+["In welchem Land liegt der Sachsenring?","Deutschland","Österreich","Tschechien","Polen",1],
+["Welchen Spitznamen trägt Valentino Rossi?","The Doctor","The Professor","The Captain","The Hammer",1],
+["Welche zwei Nachwuchsklassen gibt es unterhalb der MotoGP?","Moto2 und Moto3","Moto4 und Moto5","Superbike und Supersport","Moto1 und Moto2",1],
+["Welche Spitzengeschwindigkeit erreichen MotoGP-Maschinen auf langen Geraden etwa?","Über 350 km/h","Etwa 200 km/h","Etwa 250 km/h","Über 450 km/h",2],
+["In welchem Land liegt die MotoGP-Strecke Le Mans?","Frankreich","Belgien","Schweiz","Italien",2],
+["Welche Marke stellte 2022, 2023 und 2024 jeweils den Fahrer-Weltmeister?","Ducati","Honda","Yamaha","Aprilia",3],
+["Mit welcher Marke wurde Joan Mir 2020 Weltmeister?","Suzuki","Honda","Yamaha","KTM",3],
+["Mit welcher Marke wurde Fabio Quartararo 2021 Weltmeister?","Yamaha","Ducati","Honda","Suzuki",3],
+["Wer gewann insgesamt 15 Weltmeistertitel in verschiedenen Klassen?","Giacomo Agostini","Valentino Rossi","Mick Doohan","Angel Nieto",3],
+["Aus welchem Land stammt der Hersteller Aprilia?","Italien","Spanien","Frankreich","Deutschland",2],
+["Aus welchem Land stammt Jorge Lorenzo?","Spanien","Italien","Argentinien","Brasilien",1]
+]};
+
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+let VW=innerWidth,VH=innerHeight,DPR=1;
+function rs(){DPR=Math.min(window.devicePixelRatio||1,3);VW=innerWidth;VH=innerHeight;cv.width=VW*DPR;cv.height=VH*DPR}
+rs();addEventListener('resize',rs);addEventListener('orientationchange',()=>{setTimeout(rs,200);tilt.neutral=null});
+['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
+document.addEventListener('touchmove',e=>{const t=e.target;if(!(t&&t.closest&&t.closest('.ov')))e.preventDefault()},{passive:false});
+function tap(el,fn){let t=0;const h=e=>{const n=Date.now();if(n-t<400)return;t=n;if(e.cancelable)e.preventDefault();fn(e)};
+ el.addEventListener('pointerup',h);el.addEventListener('touchend',h,{passive:false});el.addEventListener('click',h)}
+let msgT=0;function msg(s,ms=2500){const m=$('msg');m.textContent=s;m.style.display='block';clearTimeout(msgT);msgT=setTimeout(()=>m.style.display='none',ms)}
+function hideScreens(){['mainMenu','catMenu','quiz','win'].forEach(i=>$(i).style.display='none')}
+function show(id){hideScreens();$(id).style.display='flex';$(id).scrollTop=0}
+
+// ===== Road Tycoon =====
+const CARS=[{n:'Kleinwagen',p:0,sp:3.2,c:'#e74c3c'},{n:'Kombi',p:800,sp:4.2,c:'#3498db'},{n:'Sportwagen',p:3000,sp:5.8,c:'#f1c40f'},{n:'Rennwagen',p:9000,sp:7.5,c:'#9b59b6'}];
+const def={money:0,owned:[0],cur:0,energy:100,day:1};
+let S;try{S=JSON.parse(localStorage.getItem('rt')||'null')||def}catch(e){S=def}
+function save(){try{localStorage.setItem('rt',JSON.stringify(S))}catch(e){}}
+const W=3000,H=3000;
+const car={x:1500,y:1650,a:-Math.PI/2,v:0};
+const shopB={x:1200,y:1200,w:160,h:120,c:'#2ecc71',t:'AUTOHAUS'};
+const hotelB={x:1800,y:1200,w:160,h:120,c:'#e67e22',t:'HOTEL'};
+function newJob(){let x,y;do{x=200+Math.random()*(W-400);y=200+Math.random()*(H-400)}while(Math.hypot(x-car.x,y-car.y)<500);
+ return{x,y,r:34,pay:Math.round(30+Math.hypot(x-car.x,y-car.y)/10)}}
+let job=newJob();
+const trees=[];for(let i=0;i<150;i++){const x=Math.random()*W,y=Math.random()*H;if(!(Math.abs(x-1500)<700&&Math.abs(y-1300)<400))trees.push({x,y})}
+const st={gas:false,brake:false,gasLock:false};
+let stick={id:null,sx:0,sy:0,dx:0};
+cv.addEventListener('touchstart',e=>{e.preventDefault();if(tilt.on)return;for(const t of e.changedTouches){if(stick.id===null&&t.clientX<VW*0.6){stick={id:t.identifier,sx:t.clientX,sy:t.clientY,dx:0};$('hint').style.display='none'}}},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===stick.id){stick.dx=Math.max(-1,Math.min(1,(t.clientX-stick.sx)/55))}},{passive:false});
+function endT(e){for(const t of e.changedTouches)if(t.identifier===stick.id)stick={id:null,sx:0,sy:0,dx:0}}
+cv.addEventListener('touchend',endT);cv.addEventListener('touchcancel',endT);
+function setLock(v){st.gasLock=v;const g=$('gas');g.classList.toggle('lock',v);g.textContent=v?'GAS 100%':'GAS'}
+function pedal(id,key){const el=$(id);const ids=new Set();let lastDown=0;
+ const upd=()=>{st[key]=ids.size>0;el.classList.toggle('on',st[key]&&!(key==='gas'&&st.gasLock))};
+ const down=(idv)=>{const n=Date.now();
+  if(key==='brake'&&st.gasLock)setLock(false);
+  if(key==='gas'){if(st.gasLock){setLock(false);lastDown=0}else if(n-lastDown<320){setLock(true);lastDown=0}else lastDown=n}
+  ids.add(idv);upd()};
+ el.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();for(const t of e.changedTouches)down(t.identifier)},{passive:false});
+ const off=e=>{e.preventDefault();for(const t of e.changedTouches)ids.delete(t.identifier);upd()};
+ el.addEventListener('touchend',off,{passive:false});el.addEventListener('touchcancel',off,{passive:false});
+ el.addEventListener('mousedown',()=>down('m'));addEventListener('mouseup',()=>{ids.delete('m');upd()})}
+pedal('gas','gas');pedal('brake','brake');
+const keys={};addEventListener('keydown',e=>keys[e.key]=1);addEventListener('keyup',e=>keys[e.key]=0);
+
+const tilt={on:false,neutral:null,val:0,inv:false,smooth:0};
+function orient(){return typeof window.orientation==='number'?window.orientation:((screen.orientation&&screen.orientation.angle)||0)}
+function onDO(e){if(e.beta==null||e.gamma==null)return;
+ const o=orient();let raw;
+ if(o===0)raw=e.gamma;else if(o===180)raw=-e.gamma;else if(o===90)raw=-e.beta;else raw=e.beta;
+ if(tilt.neutral===null)tilt.neutral=raw;
+ let d=raw-tilt.neutral;while(d>180)d-=360;while(d<-180)d+=360;tilt.val=d}
+async function enableTilt(){
+ if(typeof DeviceOrientationEvent==='undefined'){msg('Dieses Gerät/Browser unterstützt keine Bewegungssensoren.');return}
+ try{if(typeof DeviceOrientationEvent.requestPermission==='function'){
+   const r=await DeviceOrientationEvent.requestPermission();
+   if(r!=='granted'){msg('Zugriff auf Bewegungssensoren verweigert. Safari: Einstellungen > Apps > Safari > Bewegung & Ausrichtung.',5000);return}}
+ }catch(e){msg('Sensor-Zugriff nicht möglich. Seite muss über https geöffnet sein.',5000);return}
+ tilt.on=true;tilt.neutral=null;tilt.val=0;stick={id:null,sx:0,sy:0,dx:0};
+ addEventListener('deviceorientation',onDO);
+ $('tiltBtn').classList.add('on');$('invBtn').style.display='flex';$('hint').style.display='none';
+ msg('Neigungssteuerung AN. Halte das iPhone wie ein Lenkrad. Falls links/rechts vertauscht: ⇄ tippen.',5000)}
+function disableTilt(){tilt.on=false;removeEventListener('deviceorientation',onDO);tilt.val=0;tilt.smooth=0;
+ $('tiltBtn').classList.remove('on');$('invBtn').style.display='none';msg('Touch-Lenkung AN',1800)}
+tap($('tiltBtn'),()=>{tilt.on?disableTilt():enableTilt()});
+tap($('invBtn'),()=>{tilt.inv=!tilt.inv;msg('Lenkrichtung '+(tilt.inv?'umgekehrt':'normal'),1500)});
+function tiltSteer(){const dead=3,range=28;let d=tilt.val;
+ if(Math.abs(d)<dead)d=0;else d=(Math.abs(d)-dead)*Math.sign(d);
+ let s=Math.max(-1,Math.min(1,d/range));if(tilt.inv)s=-s;tilt.smooth+=(s-tilt.smooth)*.25;return tilt.smooth}
+
+let open=true,cool=0;
+function closeOv(){$('shop').style.display='none';$('hotel').style.display='none';open=false;car.v=0;cool=120;tilt.neutral=null}
+tap($('shopClose'),closeOv);tap($('hotelClose'),closeOv);
+function openShop(){open=true;setLock(false);const l=$('shopList');l.innerHTML='';
+ const h=document.createElement('div');h.style.margin='5px';h.textContent='Geld: '+Math.floor(S.money)+' €';l.appendChild(h);
+ CARS.forEach((c,i)=>{const d=document.createElement('div');d.className='card';const own=S.owned.includes(i);
+ d.innerHTML=`<span><b>${c.n}</b><br>Tempo ${c.sp} · ${own?'gekauft':c.p+' €'}</span>`;const b=document.createElement('button');
+ b.textContent=S.cur===i?'Aktiv':own?'Fahren':'Kaufen';b.disabled=S.cur===i||(!own&&S.money<c.p);
+ tap(b,()=>{if(b.disabled)return;if(!own){S.money-=c.p;S.owned.push(i)}S.cur=i;save();openShop()});d.appendChild(b);l.appendChild(d)});
+ $('shop').style.display='flex'}
+function openHotel(){open=true;setLock(false);$('hotelTxt').textContent=`Tag ${S.day} · Energie ${Math.round(S.energy)}% · Geld ${Math.floor(S.money)} €`;
+ $('sleepBtn').disabled=S.money<80;$('hotel').style.display='flex'}
+tap($('sleepBtn'),()=>{if(S.money>=80){S.money-=80;S.energy=100;S.day++;save();openHotel()}});
+function inB(b,m=0){return car.x>b.x-m&&car.x<b.x+b.w+m&&car.y>b.y-m&&car.y<b.y+b.h+m}
+let last=performance.now();
+function loop(t){const dt=Math.min(2.5,(t-last)/16.67);last=t;update(dt);draw();hud();requestAnimationFrame(loop)}
+function update(dt){if(open)return;
+ let steer=tilt.on?tiltSteer():stick.dx;if(keys.ArrowLeft)steer=-1;if(keys.ArrowRight)steer=1;
+ const gas=st.gas||st.gasLock||keys.ArrowUp,br=st.brake||keys.ArrowDown;
+ const mx=CARS[S.cur].sp*(S.energy<=0?.4:1);
+ if(gas&&!br)car.v+=(mx-car.v)*.03*dt;
+ else if(br){car.v-=.12*dt;if(car.v<-mx*.4)car.v=-mx*.4}
+ else car.v*=Math.pow(.985,dt);
+ if(Math.abs(car.v)<.02&&!gas&&!br)car.v=0;
+ car.a+=steer*.06*Math.max(-1,Math.min(1,car.v/2.5))*dt;
+ let nx=car.x+Math.cos(car.a)*car.v*dt,ny=car.y+Math.sin(car.a)*car.v*dt;
+ nx=Math.max(20,Math.min(W-20,nx));ny=Math.max(20,Math.min(H-20,ny));
+ for(const b of [shopB,hotelB]){if(nx>b.x-12&&nx<b.x+b.w+12&&ny>b.y-12&&ny<b.y+b.h+12){nx=car.x;ny=car.y;car.v*=.3}}
+ car.x=nx;car.y=ny;S.energy=Math.max(0,S.energy-Math.abs(car.v)*.0015*dt);
+ if(Math.hypot(car.x-job.x,car.y-job.y)<job.r+16){S.money+=job.pay;save();job=newJob()}
+ cool-=dt;if(cool<=0){if(inB(shopB,45)){cool=120;car.v=0;openShop()}else if(inB(hotelB,45)){cool=120;car.v=0;openHotel()}}
+}
+function box(b){ctx.fillStyle=b.c;ctx.fillRect(b.x,b.y,b.w,b.h);ctx.fillStyle='#000';ctx.fillRect(b.x+b.w/2-12,b.y+b.h-40,24,40);ctx.fillStyle='#fff';ctx.font='bold 18px sans-serif';ctx.textAlign='center';ctx.fillText(b.t,b.x+b.w/2,b.y+25)}
+function hud(){$('hMoney').textContent='💰 '+Math.floor(S.money)+' €';$('hEn').textContent='⚡ '+Math.round(S.energy)+'%';$('hDay').textContent='Tag '+S.day;$('hCar').textContent=CARS[S.cur].n;$('warn').style.display=(S.energy<=0&&!open)?'block':'none'}
+function draw(){ctx.setTransform(DPR,0,0,DPR,0,0);const cx=car.x-VW/2,cy=car.y-VH/2;ctx.fillStyle='#4a8c3a';ctx.fillRect(0,0,VW,VH);
+ ctx.save();ctx.translate(-cx,-cy);
+ ctx.fillStyle='#555';ctx.fillRect(0,1450,W,100);ctx.fillRect(1450,0,100,H);ctx.fillRect(1150,1150,800,60);
+ ctx.strokeStyle='#ff0';ctx.setLineDash([30,30]);ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,1500);ctx.lineTo(W,1500);ctx.moveTo(1500,0);ctx.lineTo(1500,H);ctx.stroke();ctx.setLineDash([]);
+ ctx.strokeStyle='#000';ctx.lineWidth=6;ctx.strokeRect(0,0,W,H);
+ for(const t of trees){ctx.fillStyle='#1e5c1e';ctx.beginPath();ctx.arc(t.x,t.y,18,0,7);ctx.fill()}
+ box(shopB);box(hotelB);
+ ctx.fillStyle='#00e5ff';ctx.beginPath();ctx.arc(job.x,job.y,job.r,0,7);ctx.fill();ctx.fillStyle='#000';ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(job.pay+'€',job.x,job.y+5);
+ ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.a);ctx.fillStyle=CARS[S.cur].c;ctx.fillRect(-22,-12,44,24);ctx.fillStyle='#9ad';ctx.fillRect(3,-9,11,18);ctx.fillStyle='#ff9';ctx.fillRect(20,-10,3,6);ctx.fillRect(20,4,3,6);ctx.restore();
+ ctx.restore();
+ const a=Math.atan2(job.y-car.y,job.x-car.x);ctx.save();ctx.translate(VW/2,VH/2);ctx.rotate(a);ctx.fillStyle='#00e5ff';ctx.beginPath();ctx.moveTo(80,0);ctx.lineTo(58,-9);ctx.lineTo(58,9);ctx.fill();ctx.restore();
+ if(stick.id!==null){ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(stick.sx,stick.sy,55,0,7);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.6)';ctx.beginPath();ctx.arc(stick.sx+stick.dx*55,stick.sy,24,0,7);ctx.fill()}
+ if(tilt.on){const bx=VW/2,by=VH-32,w=120;ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(bx-w/2,by-4,w,8);ctx.fillStyle='#2ecc71';ctx.beginPath();ctx.arc(bx+tilt.smooth*w/2,by,9,0,7);ctx.fill()}
+}
+requestAnimationFrame(loop);
+
+// ===== Navigation =====
+function toMenu(){open=true;setLock(false);show('mainMenu')}
+function startCar(){hideScreens();open=false;tilt.neutral=null}
+tap($('tCar'),startCar);
+tap($('menuBtn'),toMenu);
+tap($('tQuiz'),()=>show('catMenu'));
+tap($('catBack'),()=>show('mainMenu'));
+
+// ===== Quiz =====
+const CATN={auto:'🚗 Autos',f1:'🏁 Formel 1',motogp:'🏍️ MotoGP',mix:'🎲 Gemischt'};
+const GOAL=20;
+const Q={cat:null,pool:[],scores:[0,0],turn:0,names:['Spieler 1','Spieler 2'],cur:null,done:false,won:false};
+function shuf(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function fill(){const l=Q.cat==='mix'?[].concat(QDATA.auto,QDATA.f1,QDATA.motogp):QDATA[Q.cat];Q.pool=shuf(l)}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function startQuiz(cat){
+ Q.cat=cat;Q.scores=[0,0];Q.turn=0;Q.won=false;
+ Q.names=[($('n1').value.trim()||'Spieler 1'),($('n2').value.trim()||'Spieler 2')];
+ if(Q.names[0]===Q.names[1])Q.names[1]+=' (2)';
+ fill();show('quiz');nextQ()}
+document.querySelectorAll('#catMenu .tile').forEach(t=>tap(t,()=>startQuiz(t.dataset.c)));
+function scoreboard(){for(let i=0;i<2;i++){const p=$('p'+i);p.classList.toggle('act',Q.turn===i);
+ p.innerHTML=`<b>${esc(Q.names[i])}</b> ${Q.turn===i?'👈':''}<div style="font-size:22px;font-weight:800">${Q.scores[i]} <small style="font-size:13px;font-weight:400">/ ${GOAL}</small></div><div class="bar"><i style="width:${Math.min(100,Q.scores[i]/GOAL*100)}%"></i></div>`}}
+function nextQ(){
+ if(Q.pool.length===0)fill();
+ const r=Q.pool.pop();const correct=r[1];const opts=shuf([r[1],r[2],r[3],r[4]]);
+ Q.cur={q:r[0],opts,ai:opts.indexOf(correct),d:r[5]};Q.done=false;
+ scoreboard();
+ $('qInfo').innerHTML=`<span class="badge">${CATN[Q.cat]}</span><span class="badge">${esc(Q.names[Q.turn])} ist dran</span><span class="badge">${Q.cur.d} ${Q.cur.d===1?'Punkt':'Punkte'}</span>`;
+ $('qText').textContent=Q.cur.q;
+ const g=$('qAns');g.innerHTML='';
+ opts.forEach((o,i)=>{const b=document.createElement('button');b.className='ans';b.textContent=o;tap(b,()=>answer(i));g.appendChild(b)});
+ $('qFb').textContent='';$('qNext').style.display='none';$('quiz').scrollTop=0}
+function answer(i){if(Q.done)return;Q.done=true;
+ const btns=$('qAns').children;const ok=i===Q.cur.ai;
+ btns[Q.cur.ai].classList.add('ok');if(!ok)btns[i].classList.add('bad');
+ if(ok){Q.scores[Q.turn]+=Q.cur.d;$('qFb').textContent=`✅ Richtig! +${Q.cur.d} ${Q.cur.d===1?'Punkt':'Punkte'} für ${Q.names[Q.turn]}`}
+ else $('qFb').textContent='❌ Leider falsch.';
+ scoreboard();
+ if(Q.scores[Q.turn]>=GOAL){Q.won=true;$('qNext').textContent='Ergebnis anzeigen'}
+ else $('qNext').textContent=`Weiter – ${Q.names[1-Q.turn]} ist dran`;
+ $('qNext').style.display='inline-block'}
+tap($('qNext'),()=>{if(!Q.done)return;if(Q.won){showWin();return}Q.turn=1-Q.turn;nextQ()});
+tap($('qExit'),()=>{show('mainMenu')});
+function showWin(){const w=Q.turn;
+ $('wTitle').textContent='🏆 '+Q.names[w]+' gewinnt!';
+ $('wTxt').innerHTML=`${esc(Q.names[0])}: <b>${Q.scores[0]}</b> Punkte<br>${esc(Q.names[1])}: <b>${Q.scores[1]}</b> Punkte<br><small style="opacity:.7">Bereich: ${CATN[Q.cat]}</small>`;
+ show('win')}
+tap($('wAgain'),()=>{Q.scores=[0,0];Q.turn=0;Q.won=false;fill();show('quiz');nextQ()});
+tap($('wCat'),()=>show('catMenu'));
+tap($('wMenu'),()=>show('mainMenu'));
+</script></body></html>
